@@ -29,7 +29,7 @@ Street, Fifth Floor, Boston, MA 02110-1301, USA
 #include <iostream>
 #include <string>
 #include <vector>
-#include <stdint.h>
+#include <cstdint>
 #include <fstream>
 #include <sstream>
 #include <iomanip>
@@ -44,21 +44,6 @@ using namespace std;
 #include <filesystem>
 using namespace std::filesystem;
 
-vector<string> glob_image_from_dir(string dir)
-{
-    vector<string> filenames;
-    for (const auto & entry : std::filesystem::directory_iterator(dir))
-        filenames.push_back(entry.path().filename().string());
-
-    std::sort(filenames.begin(), filenames.end(),
-              [](const auto& lhs, const auto& rhs) {
-                  return lhs < rhs;
-              });
-    for (const auto& file : filenames) {
-        std::cout << file << '\n';
-    }
-}
-
 vector<float> read_intrinsics(string file)
 {
     std::ifstream infile(file);
@@ -66,20 +51,24 @@ vector<float> read_intrinsics(string file)
     vector<float> intrinsics;
     while(getline(infile, line))
     {
-        //K_02: 9.597910e+02 0.000000e+00 6.960217e+02 0.000000e+00 9.569251e+02 2.241806e+02 0.000000e+00 0.000000e+00 1.000000e+00
-        if(line.find("K_02") != string::npos)
+
+        //  P_rect_02:  7.215377e+02 0.000000e+00 6.095593e+02 4.485728e+01
+        //              0.000000e+00 7.215377e+02 1.728540e+02 2.163791e-01
+        //              0.000000e+00 0.000000e+00 1.000000e+00 2.745884e-03
+        if(line.find("P_rect_02") != string::npos)
         {
             line.erase(std::remove(line.begin(), line.end(), '\n'), line.end());
-            string values = line.substr(6);
+            string values = line.substr(11);
             istringstream ss(values);
             int cnt = 1;
+            int num_column = 4;
             float value;
             while(ss >> value){
                 if(cnt == 1) // fx
                     intrinsics.push_back(value);
                 if(cnt == 3) // cx
                     intrinsics.push_back(value);
-                if(cnt == 6) // cy
+                if(cnt == num_column+3) // cy
                 {
                     intrinsics.push_back(value);
                     break;
@@ -193,7 +182,8 @@ int main (int argc, char** argv) {
                     // has failed. this is useful if you wish to linearly extrapolate occasional
                     // frames for which no correspondences have been found
                     // on success, update current pose
-                    pose = pose * Matrix::inv(viso.getMotion());
+                    // pose = pose * Matrix::inv(viso.getMotion());
+                    pose = pose * viso.getMotion();
 
                     // output some statistics
                     double num_matches = viso.getNumberOfMatches();
@@ -205,7 +195,7 @@ int main (int argc, char** argv) {
                     // write pose to file
                     if(file_write.is_open())
                     {
-                        char leading[256]; sprintf(leading,"%02d to %02d: ", i-1, i);
+                        char leading[256]; sprintf(leading,"%02d: ", i);
                         file_write << leading;
                         file_write << std::fixed <<  std::setprecision(9) <<
                                    pose.val[0][0] << " " << pose.val[0][1] << " " << pose.val[0][2] << " " << pose.val[0][3] << " " <<
